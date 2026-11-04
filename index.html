@@ -174,65 +174,60 @@
     </div>
 
     <script>
-        const gameEmbed = document.getElementById("gameEmbed");
-
-        const keys = {
-            up: {
-                key: "ArrowUp",
-                code: "ArrowUp",
-                keyCode: 38
-            },
-            down: {
-                key: "ArrowDown",
-                code: "ArrowDown",
-                keyCode: 40
-            },
-            left: {
-                key: "ArrowLeft",
-                code: "ArrowLeft",
-                keyCode: 37
-            },
-            right: {
-                key: "ArrowRight",
-                code: "ArrowRight",
-                keyCode: 39
-            },
-            space: {
-                key: " ",
-                code: "Space",
-                keyCode: 32
-            }
-        };
-
         const activeKeys = new Set();
 
-        function sendKey(type, keyInfo) {
+        const keys = {
+            up:     { key: "ArrowUp",    code: "ArrowUp",    keyCode: 38 },
+            down:   { key: "ArrowDown",  code: "ArrowDown",  keyCode: 40 },
+            left:   { key: "ArrowLeft",  code: "ArrowLeft",  keyCode: 37 },
+            right:  { key: "ArrowRight", code: "ArrowRight", keyCode: 39 },
+            space:  { key: " ",          code: "Space",      keyCode: 32 }
+        };
 
-            const targets = new Set([
-                document.activeElement,
-                gameEmbed,
-                document
-            ]);
-
-            for (const target of targets) {
-
-                if (!target || typeof target.dispatchEvent !== "function") {
-                    continue;
-                }
-
-                target.dispatchEvent(new KeyboardEvent(type, {
-                    key: keyInfo.key,
-                    code: keyInfo.code,
-                    keyCode: keyInfo.keyCode,
-                    which: keyInfo.keyCode,
-                    bubbles: true,
-                    cancelable: true
-                }));
-            }
+        // OBTENER EL REPRODUCTOR RUFFLE
+        function getPlayer() {
+            return document.querySelector("ruffle-player");
         }
 
-        function pressKey(name) {
+        // ENVIAR TECLAS A RUFFLE
+        function sendKey(type, keyInfo) {
+            const player = getPlayer();
 
+            if (!player) {
+                console.warn("No se encontró el reproductor Ruffle.");
+                return;
+            }
+
+            player.focus();
+
+            // ACTIVAR EL ENFOQUE DE ENTRADA
+            if (type === "keydown") {
+                player.dispatchEvent(new PointerEvent("pointerdown", {
+                    bubbles: true,
+                    composed: true,
+                    cancelable: true,
+                    pointerType: "touch",
+                    isPrimary: true,
+                    button: 0,
+                    buttons: 1
+                }));
+            }
+
+            // ENVIAR EVENTO DE TECLADO
+            player.dispatchEvent(new KeyboardEvent(type, {
+                key: keyInfo.key,
+                code: keyInfo.code,
+                keyCode: keyInfo.keyCode,
+                which: keyInfo.keyCode,
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                view: window
+            }));
+        }
+
+        // PRESIONAR TECLA
+        function pressKey(name) {
             if (activeKeys.has(name)) return;
 
             activeKeys.add(name);
@@ -246,8 +241,8 @@
             sendKey("keydown", keys[name]);
         }
 
+        // SOLTAR TECLA
         function releaseKey(name) {
-
             if (!activeKeys.has(name)) return;
 
             activeKeys.delete(name);
@@ -261,32 +256,27 @@
             sendKey("keyup", keys[name]);
         }
 
-        // CONTROLES FÍSICOS DEL TECLADO
-
+        // EVITAR DESPLAZAMIENTO DE LA PÁGINA
         document.addEventListener("keydown", function(event) {
-
-            const keyName = {
-                ArrowUp: "up",
-                ArrowDown: "down",
-                ArrowLeft: "left",
-                ArrowRight: "right",
-                Space: "space"
-            }[event.code];
-
-            if (!keyName) return;
-
-            event.preventDefault();
+            if (
+                event.code.startsWith("Arrow") ||
+                event.code === "Space"
+            ) {
+                event.preventDefault();
+            }
         });
 
-        // BOTONES TÁCTILES
-
+        // CONFIGURAR BOTONES TÁCTILES
         function setupButton(buttonId, keyName) {
-
             const button = document.getElementById(buttonId);
 
             button.addEventListener("pointerdown", function(event) {
                 event.preventDefault();
-                button.setPointerCapture(event.pointerId);
+
+                if (button.setPointerCapture) {
+                    button.setPointerCapture(event.pointerId);
+                }
+
                 pressKey(keyName);
             });
 
@@ -310,12 +300,9 @@
         setupButton("rightButton", "right");
         setupButton("spaceButton", "space");
 
-        // LIBERAR TECLAS AL SALIR DE LA PÁGINA
-
+        // LIBERAR TODAS LAS TECLAS
         function releaseAllKeys() {
-            for (const keyName of [...activeKeys]) {
-                releaseKey(keyName);
-            }
+            [...activeKeys].forEach(releaseKey);
         }
 
         window.addEventListener("blur", releaseAllKeys);
